@@ -1,23 +1,40 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 
-
 namespace WebApi.Controllers
 {
     [ApiController]
-    [Route("api/juric")]
+    [Route("/jurii")]
     public class JuriCompilerController : Controller
     {
         private static string Inhalt = new string("");
         
-        [HttpGet("{Inhalt}")]
-        public async Task<ActionResult<JuriCompiler>> Get(string Inhalt)
+        [HttpGet]
+        public async Task<JuriOutput> InterpretCode([FromQuery]string codeBase64)
         {
-            var ínterpreter = new API.Interpreter();
-            ínterpreter.ParseJuriProgram(Inhalt);
-            ínterpreter.ExecuteProgram();
-            return Ok("{result: SMOLPP}");
+            
+            var code = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(codeBase64));
+            var interpreter = new Juri.Api.Interpreter();
+            interpreter.ParseJuriProgram(code);
+            
+            if (!interpreter.ParsingOk())
+            {
+                return new JuriOutput()
+                {
+                    Standard = "",
+                    Error = interpreter.GetOutputStreams().Error.ReadToEnd(),
+                    Meta = ""
+                };
+            }
+             
+            interpreter.ExecuteProgram();
+            interpreter.GetOutputStreams();
 
-            // .net popo
+            return new JuriOutput()
+            {
+                Standard = interpreter.GetOutputStreams().Standard.ReadToEnd(),
+                Error = interpreter.GetOutputStreams().Error.ReadToEnd(),
+                Meta = interpreter.GetOutputStreams().MetaInfo.ReadToEnd()
+            };
         }
     }
 }
