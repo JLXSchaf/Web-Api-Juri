@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace WebApi.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
     public class juriController : ControllerBase
     {
         private static List<Juri> heroes = new List<Juri>
