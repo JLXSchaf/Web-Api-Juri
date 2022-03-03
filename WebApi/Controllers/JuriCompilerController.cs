@@ -14,7 +14,7 @@ namespace WebApi.Controllers
             var ínterpreter = new API.Interpreter();
             ínterpreter.ParseJuriProgram(Inhalt);
             ínterpreter.ExecuteProgram();
-            return Ok("");
+            return Ok("{result: SMOLPP}");
 
             // .net popo
         }
