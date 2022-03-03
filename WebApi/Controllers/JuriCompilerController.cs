@@ -27,13 +27,13 @@ namespace WebApi.Controllers
             }
              
             interpreter.ExecuteProgram();
-            interpreter.GetOutputStreams();
+            var output = interpreter.GetOutputStreams();
 
             return new JuriOutput()
             {
-                Standard = interpreter.GetOutputStreams().Standard.ReadToEnd(),
-                Error = interpreter.GetOutputStreams().Error.ReadToEnd(),
-                Meta = interpreter.GetOutputStreams().MetaInfo.ReadToEnd()
+                Standard = output.Standard.ReadToEnd(),
+                Error = output.Error.ReadToEnd(),
+                Meta = output.MetaInfo.ReadToEnd()
             };
         }
     }
