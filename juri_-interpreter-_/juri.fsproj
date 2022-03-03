@@ -2,11 +2,11 @@
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <OutputType>Exe</OutputType>
-    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="ParserCombinators.fs" />
     <Compile Include="LanguageModel.fs" />
+    <Compile Include="JuriOutput.fs" />
     <Compile Include="Runtime.fs" />
     <Compile Include="CoreLib.fs" />
     <Compile Include="Interpreter.fs" />
@@ -16,6 +16,6 @@
     <Content Include="examples\euler1.jri" />
     <Content Include="examples\euler2.jri" />
     <Compile Include="JuriInterpreter.fs" />
-    <Compile Include="Main.fs" />
+    <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>
