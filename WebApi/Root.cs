@@ -1,6 +1,6 @@
 ﻿namespace WebApi
 {
-    public class Main
+    public class Root
     {
     }
 }

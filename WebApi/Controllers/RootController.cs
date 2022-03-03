@@ -5,7 +5,7 @@ namespace WebApi.Controllers
     [ApiController]
     [Route("/")]
     
-    public class main : Controller
+    public class RootController : Controller
     {
 
         [HttpGet("")]
