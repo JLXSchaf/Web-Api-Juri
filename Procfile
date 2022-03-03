@@ -1,2 +1,3 @@
-web: ./mono-build/bin/mono src/bin/webapijuri.exe
-local: mono src/bin/webapijuri.exe
+web: ./dotnet build/bin/mono 	dotnet publish
+local: dotnet src/bin/webapijuri.exe
+RID: linux-arm64
