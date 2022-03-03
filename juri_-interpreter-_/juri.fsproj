@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="ParserCombinators.fs" />
+    <Compile Include="LanguageModel.fs" />
+    <Compile Include="Runtime.fs" />
+    <Compile Include="CoreLib.fs" />
+    <Compile Include="Interpreter.fs" />
+    <Compile Include="Parser.fs" />
+    <Compile Include="Repl.fs" />
+    <Compile Include="CLI.fs" />
+    <Content Include="examples\euler1.jri" />
+    <Content Include="examples\euler2.jri" />
+    <Compile Include="JuriInterpreter.fs" />
+    <Compile Include="Main.fs" />
+  </ItemGroup>
+</Project>

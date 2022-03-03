@@ -1,9 +1,10 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 
+
 namespace WebApi.Controllers
 {
-    [Route("api/juric")]
     [ApiController]
+    [Route("api/juric")]
     public class JuriCompilerController : Controller
     {
         private static string Inhalt = new string("");
@@ -14,7 +15,7 @@ namespace WebApi.Controllers
             var ínterpreter = new API.Interpreter();
             ínterpreter.ParseJuriProgram(Inhalt);
             ínterpreter.ExecuteProgram();
-            return Ok("");
+            return Ok("{result: SMOLPP}");
 
             // .net popo
         }

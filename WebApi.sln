@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.32112.339
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebApi", "WebApi\WebApi.csproj", "{1351EA70-752A-46FD-9777-C964D916F5C4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WebApi", "WebApi\WebApi.csproj", "{1351EA70-752A-46FD-9777-C964D916F5C4}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "juri", "juri\juri.fsproj", "{49D2FA7E-903F-4C58-8467-388C82705798}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "juri", "juri_-interpreter-_\juri.fsproj", "{A79228A5-D20B-4D83-B03E-800C855E4684}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,10 +17,10 @@ Global
 		{1351EA70-752A-46FD-9777-C964D916F5C4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1351EA70-752A-46FD-9777-C964D916F5C4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1351EA70-752A-46FD-9777-C964D916F5C4}.Release|Any CPU.Build.0 = Release|Any CPU
-		{49D2FA7E-903F-4C58-8467-388C82705798}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{49D2FA7E-903F-4C58-8467-388C82705798}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{49D2FA7E-903F-4C58-8467-388C82705798}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{49D2FA7E-903F-4C58-8467-388C82705798}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A79228A5-D20B-4D83-B03E-800C855E4684}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A79228A5-D20B-4D83-B03E-800C855E4684}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A79228A5-D20B-4D83-B03E-800C855E4684}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A79228A5-D20B-4D83-B03E-800C855E4684}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
