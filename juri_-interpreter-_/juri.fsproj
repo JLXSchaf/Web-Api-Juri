@@ -15,6 +15,6 @@
     <Content Include="examples\euler1.jri" />
     <Content Include="examples\euler2.jri" />
     <Compile Include="JuriInterpreter.fs" />
-    <Compile Include="Program.fs" />
+    <Compile Include="Main.fs" />
   </ItemGroup>
 </Project>
