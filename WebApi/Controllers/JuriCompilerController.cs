@@ -10,10 +10,10 @@ namespace WebApi.Controllers
         private static string Inhalt = new string("");
         
         [HttpGet]
-        public async Task<JuriOutput> InterpretCode([FromQuery]string codeBase64Url)
+        public async Task<JuriOutput> InterpretCode([FromQuery]string code)
         {
             
-            var codedecoded = Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlDecode(codeBase64Url);
+            var codedecoded = Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlDecode(code);
             // byte[] to string
             var codestring = System.Text.Encoding.UTF8.GetString(codedecoded);
 
