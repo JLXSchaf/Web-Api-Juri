@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using System.Linq;
 
 namespace WebApi.Controllers
 {
@@ -9,12 +10,15 @@ namespace WebApi.Controllers
         private static string Inhalt = new string("");
         
         [HttpGet]
-        public async Task<JuriOutput> InterpretCode([FromQuery]string codeBase64)
+        public async Task<JuriOutput> InterpretCode([FromQuery]string codeBase64Url)
         {
             
-            var code = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(codeBase64));
+            var codedecoded = Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlDecode(codeBase64Url);
+            // byte[] to string
+            var codestring = System.Text.Encoding.UTF8.GetString(codedecoded);
+
             var interpreter = new Juri.Api.Interpreter();
-            interpreter.ParseJuriProgram(code);
+            interpreter.ParseJuriProgram(codestring);
             
             if (!interpreter.ParsingOk())
             {
