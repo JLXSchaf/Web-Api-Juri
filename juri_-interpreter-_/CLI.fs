@@ -1,24 +1,31 @@
-module Internal.CLI
+module Juri.Internal.CLI
 
-open Internal.Repl
-open Internal.Parser
-open Internal.ParserCombinators
+open Juri.Internal.OutputWriter
+open Repl
+open Parser
+open ParserCombinators
 open System.IO
-open Internal.Interpreter
-open Internal.CoreLib
-open Internal.Runtime
+open Interpreter
+open CoreLib
+open Runtime
 
 let private runScript script =
+    let outputWriter : IOutputWriter = ConsoleWriter()
     let initialState : ComputationState = (None, createEnvWithCoreLibFunctions())
-    let prog = parseProgram (script + "\n")
     match parseProgram (script+"\n") with
     | Success (r,_,_) -> 
-        compute r initialState |> ignore
+        compute r outputWriter initialState
+        |> evalResultPrinter false outputWriter
+        |> ignore
         0
-    | _ -> (); 0
+    | Failure (msg, _) ->
+        outputWriter.WriteERR(msg)
+        0
+    | Fatal (msg, _) ->
+        outputWriter.WriteERR(msg)
+        0
 
 let run argv =
-    let initialState : ComputationState = (None, createEnvWithCoreLibFunctions())
     match argv with
     | [||] ->
         printfn "juri repl (juri version 0.1.0)"
@@ -26,7 +33,6 @@ let run argv =
     | [|path|] ->
         if File.Exists(path) then
             printfn $"executing file: \"{path}\""
-            let fileContent = File.ReadAllText(path)
             //printfn "read script from file %A" (fileContent.ToCharArray())
             runScript(File.ReadAllText(path))
         else

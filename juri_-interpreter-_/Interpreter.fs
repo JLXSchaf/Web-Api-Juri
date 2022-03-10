@@ -1,98 +1,326 @@
-module Internal.Interpreter
+module Juri.Internal.Interpreter
 
 open System
+open Juri.Internal.OutputWriter
 open LanguageModel
 open Runtime
 
 
 
-let rec private computeLoop (con: Expression) (rep: bool) (body: Instruction list) (state: ComputationState) : EvalResult<ComputationState> =
-    let lastExp, env = state
-    match eval env con with
+// helper functions
+
+
+let rec private computeLoop
+        (con: Expression)
+        (rep: bool)
+        (body: Instruction list)
+        (outputWriter: IOutputWriter)
+        (state: ComputationState) : InterpreterResult<ComputationState> =
+    
+    match eval outputWriter state con with
     | Error e       -> Error e
     | Ok 0.         -> Ok state
     | Ok _ when rep ->
-            match (compute body state) with
+            match (compute body outputWriter state) with
             | Error e -> Error e
-            | Ok x -> computeLoop con rep body x
-    | Ok _          -> (compute body state)
+            | Ok x -> computeLoop con rep body outputWriter x
+    | Ok _          -> (compute body outputWriter state)
 
 
-and private computeAssignment (id, exp) (state: ComputationState) : EvalResult<ComputationState> =
-    let lastExp, env = state
-    let addVariableToState x = Ok (lastExp, env |> Map.add id (Variable x))
+and private computeAssignment
+        (id, exp)
+        (outputWriter: IOutputWriter)
+        (state: ComputationState) : InterpreterResult<ComputationState> =
+    
+    let _, env = state
+    let addVariableToState x =
+        let newEnv = env |> Map.add id (Variable x)
+        Ok (Some x, newEnv)
     match (env.TryFind id) with
-    | Some (CustomFunction _) | Some (ProvidedFunction _) -> Error (sprintf "%A ist eine Funktion und kann keinen Wert zugewiesen bekommen." id)
-    | _ -> eval env exp >=> addVariableToState
-
-
-and private computeFunctionDefinition (id, argNames, body) (state: ComputationState) : EvalResult<ComputationState> =
-    let lastExp, env = state
-    let addFunctionToState () = Ok (lastExp, env |> Map.add id (CustomFunction (argNames, body)))
+    | None | Some (Variable _) -> eval outputWriter state exp >>= addVariableToState
+    | _ -> Error $"{id} ist keine Variable und kann keinen Wert zugewiesen bekommen."
+    
+    
+and private computeListAssignment
+        (id, expressions)
+        (outputWriter: IOutputWriter)
+        (state: ComputationState) : InterpreterResult<ComputationState> =
+        
+    let _, env = state
+    let addListToState (xs: float list) =
+        let newEnv = env |> Map.add id (List (List.toArray xs))
+        Ok (None, newEnv)
     match (env.TryFind id) with
-    | Some _ -> Error (sprintf "Der Name %A wird bereits verwendet und kann nicht neu definiert werden." id)
+    | None | Some (List _) ->
+        evalList expressions outputWriter state
+        >>= addListToState
+    | _ -> Error $"{id} ist keine Liste und kann keine entsprechenden Werte zugewiesen bekommen."
+    
+    
+    
+and private computeListAssignmentWithRange
+        (id, lowerBoundExpression, upperBoundExpression)
+        (outputWriter: IOutputWriter)
+        (state: ComputationState) : InterpreterResult<ComputationState> =
+        
+    let _, env = state
+    match (env.TryFind id) with
+    | None | Some (List _) ->
+        let lowerEvalResult = eval outputWriter state lowerBoundExpression
+        let upperEvalResult = eval outputWriter state upperBoundExpression
+        match (lowerEvalResult, upperEvalResult) with
+        | (Ok low, Ok up) ->
+            let newEnv = env |> Map.add id (List [|low..up|])
+            Ok (None, newEnv)
+        | (Error msg, _) -> Error msg
+        | (_, Error msg) -> Error msg
+    | _ -> Error $"{id} ist keine Liste und kann keine entsprechenden Werte zugewiesen bekommen."
+    
+    
+    
+and private computeListInitialisationWithValue
+        (listName, sizeExpression, valueExpression)
+        (outputWriter: IOutputWriter)
+        (state: ComputationState) : InterpreterResult<ComputationState> =
+    
+    let _, env = state
+    match (env.TryFind listName) with
+    | None | Some (List _) ->
+        let sizeEvalResult = eval outputWriter state sizeExpression
+        let valueEvalResult = eval outputWriter state valueExpression
+        match (sizeEvalResult, valueEvalResult) with
+        | (Ok size, Ok value) ->
+            let newList = Array.create (int size) value
+            let newEnv = env |> Map.add listName (List newList)
+            Ok (None, newEnv)
+        | (Error msg, _) -> Error msg
+        | (_, Error msg) -> Error msg
+    | _ -> Error $"{id} ist keine Liste und kann keine entsprechenden Werte zugewiesen bekommen."
+    
+            
+            
+and private computeListInitialisationWithCode
+        (listName, sizeExpression, indexName, generatorCode) 
+        (outputWriter: IOutputWriter)
+        (state: ComputationState) : InterpreterResult<ComputationState> =
+    
+    let _, env = state
+    let generateListElement i state =
+        let generatorResult =
+            computeAssignment (indexName, LiteralNumber i) outputWriter state
+            >>= compute generatorCode outputWriter
+        match generatorResult with
+        | Error msg -> Error $"Fehler beim Generieren des Listenelements: {msg}"
+        | Ok (None, _) -> Error $"Fehler beim Generieren des Listenelements: Der Generatorcode hat keinen Wert zurückgegeben."
+        | Ok (Some x, _) -> Ok x
+    match (env.TryFind listName) with
+    | None | Some (List _) ->
+        let sizeEvalResult = eval outputWriter state sizeExpression
+        match sizeEvalResult with
+        | Ok size ->
+            if size < 0. then
+                Error $"Es kann keine List der Länge {size} erstellt werden."
+            else
+                let newList : float array = Array.create (int size) 0.
+                let mutable i = 0
+                let mutable cancelFlag = false
+                let mutable generationError = Error ""
+                while i < (int size) && not cancelFlag do
+                    let element = generateListElement i state
+                    match element with
+                    | Error msg ->
+                        cancelFlag <- true
+                        generationError <- Error msg
+                    | Ok x ->
+                        newList[i] <- x
+                    i <- i+1
+                if cancelFlag then
+                    generationError
+                else
+                    let newEnv = env |> Map.add listName (List newList)
+                    Ok (None, newEnv)
+        | Error msg -> Error msg
+    | _ -> Error $"{id} ist keine Liste und kann keine entsprechenden Werte zugewiesen bekommen."
+    
+and private computeListElementAssignment
+        (id, indexExpression, valueExpression)
+        (outputWriter: IOutputWriter)
+        (state: ComputationState) : InterpreterResult<ComputationState> =
+    let _, env = state
+    match (env.TryFind id) with
+    | Some (List xs) ->
+        let indexEvalResult = eval outputWriter state indexExpression
+        let valueEvalResult = eval outputWriter state valueExpression
+        match (indexEvalResult, valueEvalResult ) with
+        | (Ok index, Ok value) ->
+            let trueIndex = if index < 0.0 then xs.Length + int index else int index
+            if trueIndex >= 0 && trueIndex < xs.Length then
+                xs[trueIndex] <- value
+            Ok (Some value, env)
+        | (Error msg, _) -> Error msg
+        | (_, Error msg) -> Error msg
+    | _ -> Error $"{id} ist keine Liste."
+    
+
+and private computeFunctionDefinition
+        (id, argNames, body)
+        (state: ComputationState) : InterpreterResult<ComputationState> =
+    
+    let lastExp, env = state
+    let addFunctionToState () =
+        let newEnv = env |> Map.add id (CustomFunction (argNames, body))
+        Ok (lastExp, newEnv)
+    match (env.TryFind id) with
+    | Some _ -> Error $"Der Name {id} wird bereits verwendet und kann nicht neu definiert werden."
     | None -> addFunctionToState ()
 
 
-and compute (prog: Instruction list) (state: ComputationState) : EvalResult<ComputationState> =
-    let lastExp, env = state
-    match prog with
+and private computeListIteration
+        (listName, valueName, loopBody)
+        (outputWriter: IOutputWriter)
+        (state: ComputationState) : InterpreterResult<ComputationState> =
+    
+    let _, env = state
+    let computeIteration state value =
+        computeAssignment (valueName, LiteralNumber value) outputWriter state
+        >>= compute loopBody outputWriter
+    let rec iterate (xs: float array) pos state =
+        if pos = xs.Length then
+            Ok state
+        else
+            computeIteration state xs[pos]
+            >>= iterate xs (pos+1) 
+    match (env.TryFind listName) with
+    | Some (List xs) -> iterate xs 0 state
+    | _ -> Error $"{listName} ist keine Liste."
+
+
+and compute
+        (program: Instruction list)
+        (outputWriter: IOutputWriter)
+        (state: ComputationState) : InterpreterResult<ComputationState> =
+    
+    let _, env = state
+    match program with
     | [] -> Ok state
-    | inst :: tail ->
-        match inst with
+    | instruction :: tail ->
+        match instruction with
         | Expression exp ->
-            match eval env exp with
-            | Ok x -> compute tail (Some x, env)
+            match eval outputWriter state exp with
+            | Ok x -> compute tail outputWriter (Some x, env)
             | Error e -> Error e
         | Assignment (id,exp) ->
-            computeAssignment (id, exp) state
-            >>= compute tail
+            computeAssignment (id, exp) outputWriter state
+            >>= compute tail outputWriter
         | FunctionDefinition (id, argNames, body) ->
             computeFunctionDefinition (id, argNames, body) state
-            >>= compute tail
+            >>= compute tail outputWriter
         | Loop (con, rep, body) ->
-            computeLoop con rep body state
-            >>= compute tail
-        | OperatorDefinition ((BinaryOperator opName), leftName, rightName, body) ->
+            computeLoop con rep body outputWriter state
+            >>= compute tail outputWriter
+        | OperatorDefinition (BinaryOperator opName, leftName, rightName, body) ->
             computeFunctionDefinition (Identifier opName, [leftName; rightName], body) state
-            >>= compute tail
+            >>= compute tail outputWriter
+        | ListAssignment(listName, expressions) ->
+            computeListAssignment (listName, expressions) outputWriter state
+            >>= compute tail outputWriter
+        | ListAssignmentWithRange (listName, lowerBound, upperBound) ->
+            computeListAssignmentWithRange (listName, lowerBound, upperBound) outputWriter state
+            >>= compute tail outputWriter
+        | ListInitialisationWithValue (listName, size, value) ->
+            computeListInitialisationWithValue (listName, size, value) outputWriter state
+            >>= compute tail outputWriter
+        | ListInitialisationWithCode(listName, size, indexName, instructions) ->
+            computeListInitialisationWithCode (listName, size, indexName, instructions) outputWriter state
+            >>= compute tail outputWriter
+        | ListElementAssignment(identifier, indexExpression, valueExpression) ->
+            computeListElementAssignment (identifier, indexExpression, valueExpression) outputWriter state
+            >>= compute tail outputWriter
+        | Iteration(listName, elementName, loopBody) ->
+            computeListIteration (listName, elementName, loopBody) outputWriter state
+            >>= compute tail outputWriter
 
 
-and private eval (env: Environment) (exp: Expression) : EvalResult<float> =
+and private eval
+        (outputWriter: IOutputWriter)
+        (state: ComputationState)
+        (exp: Expression) : InterpreterResult<float> =
+    
+    let _, env = state
     match exp with
     | LiteralNumber x -> Ok x
     | VariableReference id ->
         match (Map.tryFind id env) with
-        | None -> Error (sprintf "Der Verweis auf %A konnt nicht aufgelöst werden." id)
-        | Some (CustomFunction _) -> Error (sprintf "%A ist keine Variable sondern eine Funktion" id)
-        | Some (ProvidedFunction _) -> Error (sprintf "%A ist keine Variable sondern eine Funktion." id)
         | Some (Variable x) -> Ok x
+        | Some _ -> Error $"{id} ist keine Variable"
+        | None -> Error $"Der Verweis auf %A{id} konnt nicht aufgelöst werden."
+    | ListAccess (id, indexExpression) ->
+        match (Map.tryFind id env) with
+        | Some (List xs) ->
+            eval outputWriter state indexExpression
+            >>= (int >> Ok)
+            >>= evalListAccess xs
+        | Some _ -> Error $"{id} ist keine Liste."
+        | None -> Error $"Die Liste {id} existiert nicht."
+    | ListLength id ->
+        match (Map.tryFind id env) with
+        | Some (List xs) -> Ok xs.Length
+        | _ -> Error $"Die Liste {id} existiert nicht."
     | FunctionCall (id, args) ->
         match (Map.tryFind id env) with
-        | None -> Error (sprintf "Der Verweis auf %A konnt nicht aufgelöst werden." id)
-        | Some (Variable _) -> Error (sprintf "%A is keine Funktion sondern eine Variable." id)
-        | Some (ProvidedFunction f) -> evalList args env >=> f
-        | Some (CustomFunction (argNames, body)) -> evalList args env >=> evalCustomFunction (argNames, body) env
-    | Binary ((BinaryOperator op), left, right) ->
+        | Some (ProvidedFunction f) ->
+            evalList args outputWriter state
+            >>= (f outputWriter)
+        | Some (CustomFunction (argNames, body)) ->
+            evalList args outputWriter state
+            >>= evalCustomFunction (argNames, body) outputWriter state
+        | Some _ -> Error $"{id} ist keine Funktion."
+        | None -> Error $"Der Verweis auf %A{id} konnte nicht aufgelöst werden."
+    | Binary (BinaryOperator op, left, right) ->
         match (Map.tryFind (Identifier op) env) with
-        | None -> Error (sprintf "Der Operator %A ist nicht definiert" op)
-        | Some (Variable _) -> Error (sprintf "%A is kein Operator sondern eine Variable." id)
-        | Some (ProvidedFunction f) -> evalList [left;right] env >=> f
-        | Some (CustomFunction (argNames, body)) -> evalList [left;right] env >=> evalCustomFunction (argNames, body) env
+        | Some (ProvidedFunction f) ->
+            evalList [left;right] outputWriter state
+            >>= (f outputWriter)
+        | Some (CustomFunction (argNames, body)) ->
+            evalList [left;right] outputWriter state
+            >>= (evalCustomFunction (argNames, body) outputWriter state)
+        | Some _ -> Error $"{id} ist kein Operator."
+        | None -> Error $"Der Operator %A{op} ist nicht definiert"
 
 
-and private evalList (expList : Expression list) (env: Environment) : EvalResult<float list> =
-    let appender state elem =
-        match state, elem with
-        | Error _, _ -> state
+and private evalListAccess
+        (list: float array)
+        (index: int) : InterpreterResult<float> =
+    
+    let trueIndex =
+        if index < 0
+            then list.Length + index
+            else index
+    if trueIndex >= 0 && trueIndex < list.Length
+        then Ok list[trueIndex]
+        else Error $"Der Index {index} liegt ausserhalb des Umfangs der Liste."
+
+and private evalList
+        (expList: Expression list)
+        (outputWriter: IOutputWriter)
+        (state: ComputationState) : InterpreterResult<float list> =
+    
+    let appender results elem =
+        match results, elem with
+        | Error _, _ -> results
         | Ok _, Error e -> Error e
         | Ok xs, Ok x -> Ok (xs @ [x])
     expList
-    |> List.map (eval env)
+    |> List.map (eval outputWriter state)
     |> List.fold appender (Ok [])
 
 
-and private evalCustomFunction (argNames, body) (env: Environment) (args: float list) : EvalResult<float> =
+and private evalCustomFunction
+        (argNames, body)
+        (outputWriter: IOutputWriter)
+        (state: ComputationState)
+        (args: float list) : InterpreterResult<float> =
+    let _, env = state
     if argNames.Length <> args.Length then
         Error (sprintf "Diese Funktion erwarte %i Argumente - es wurden aber %i übergeben." argNames.Length args.Length)
     else
@@ -100,7 +328,7 @@ and private evalCustomFunction (argNames, body) (env: Environment) (args: float 
         let scopedVariables = args |> List.map Variable |> List.zip argNames
         let scopedFunctions = env |> Map.filter functionFilter |> Map.toList
         let functionEnv = Map (scopedVariables @ scopedFunctions)
-        let returnValue = compute body (None, functionEnv)
+        let returnValue = compute body outputWriter (None, functionEnv)
         match returnValue with
         | Error e -> Error e
         | Ok (None, _) -> Error "Die Funktion hat keinen Wert zurückgegeben"
