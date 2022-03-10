@@ -4,6 +4,8 @@
 * repeat
 * fun
 * operator
+* as
+* iterate
 
 ### Operator-Zeichen:
 ```
@@ -16,21 +18,30 @@
 ```
 
 
-# Listen (noch nicht implementiert)
+# Listen
 **Listennamen** beginnen mit einem ```:```.
+Listen werden mit folgender Sytax deklariert:
+```
+:myList = [1 2 3 4]          // Erstellt die Liste mit den gegebenen Elementen
 
-```
-:myList = [1 2 3 4]
+:anotherList = [2 to 345]      // Erstellt eine Liste mit den Zahlen von 2 bis 345
+
+:longList = init 1000 0      // Erstellt eine Liste mit 1000 nullen
+
+:evenNums = init 50 as i
+    i * 2                    // Erstellt eine Liste mit den Zahlen 0,2,4,8... 
 ```
 
-Listenelemente können per **Index** referenziert werden.
+Einzelne Listenelemente können per **Index** referenziert und geändert werden.  Das Erste Element hat den Index 0.
 ```
-2:myList
+print(0:myList)     // gibt 1 aus
+print(-1:myList)    // gibt 4 aus
+2:myList = 99       // weist dem Element an Index 2 den wert 99 zu: [1 2 99 4]
 ```
 
 Um die **Länge** einer Liste herrauszufinden fragen Sie einfach.
 ```
-?:myList
+?:myList            // evaluiert zu 4
 ```
 
 Um über eine Liste zu **iterieren** stellt juri die ```iterate``` Anweisung zur Verfügung.
@@ -47,7 +58,7 @@ if i < ?:myList repeat
     i = i+1
 ```
 
-**Funktionsparameter** können als Liste festgelegt werden
+**Funktionsparameter** können als Liste festgelegt werden (noch nicht Implementiert)
 ```
 fun snipList :list start end
     i = start

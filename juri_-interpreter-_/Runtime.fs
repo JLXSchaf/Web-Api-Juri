@@ -1,7 +1,7 @@
 module Juri.Internal.Runtime
 
 open System
-open Output
+open Juri.Internal.OutputWriter
 open LanguageModel
 
 
@@ -20,11 +20,12 @@ type InterpreterResult<'T> =
 
 
 type ProvidedFunction =
-    InterpreterOutput -> float list -> InterpreterResult<float>
+    IOutputWriter -> float list -> InterpreterResult<float>
 
 
 and EnvironmentObject =
     | Variable of float
+    | List of float array
     | CustomFunction of expectedArguments: Identifier list * functionBody: Instruction list
     | ProvidedFunction of ProvidedFunction
 
@@ -33,24 +34,18 @@ and Environment =
     Map<Identifier, EnvironmentObject>
 
 
-and ComputationState = float Option * Environment * InterpreterOutput
+and ComputationState = float Option * Environment
 
-
-let errorPrinter msg =
-    Console.ForegroundColor <- ConsoleColor.Red
-    printfn ""
-    printfn "Error: %s" msg
-    Console.ResetColor()
-
-
-let evalResultPrinter printOnlyErrors (exp: InterpreterResult<'a>) =
+let evalResultPrinter
+        printOnlyErrors
+        (outputWriter: IOutputWriter)
+        (exp: InterpreterResult<'a>) =
     match exp with
     | Error e ->
-        errorPrinter e
+        outputWriter.WriteERR(e)
         exp
     | Ok x when not printOnlyErrors ->
-        printfn "%O" x
+        outputWriter.WriteSTD(x.ToString())
         exp
     | _ ->
         exp
-

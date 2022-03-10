@@ -33,7 +33,7 @@ let private buildinPrint : ProvidedFunction =
             |> List.map (fun x -> sprintf "%f " x)
             |> String.Concat
             |> sprintf "%s\n"
-        out.Standard.Write(outputString)
+        out.WriteSTD(outputString)
         Ok 0.
 
 let private buildinPrintChar : ProvidedFunction =
@@ -43,7 +43,7 @@ let private buildinPrintChar : ProvidedFunction =
             |> List.map (fun x -> x |> int |> char)
             |> String.Concat
             |> sprintf "%s\n"
-        out.Standard.Write(outputString)
+        out.WriteSTD(outputString)
         Ok 0.
 
 let private argError n = Error (sprintf "Diese Funktion erwartet 2 Argumente - es wurden aber %i übergeben" n)
@@ -77,6 +77,16 @@ let private lesser : ProvidedFunction =
         match args with
         | [l; r] ->
             if l < r
+                then Ok 1.
+                else Ok 0.
+        | _ -> argError args.Length
+
+let private juri : ProvidedFunction =
+    fun _ args ->
+        match args with
+        | [l; r] ->
+            let rnd = Random(Environment.TickCount)
+            if rnd.Next(100) > 50
                 then Ok 1.
                 else Ok 0.
         | _ -> argError args.Length
@@ -162,4 +172,5 @@ let createEnvWithCoreLibFunctions () : Environment =
         (Identifier ">=", ProvidedFunction greaterEquals)
         (Identifier "%", ProvidedFunction modulo)
         (Identifier "**", ProvidedFunction pow)
+        (Identifier "??", ProvidedFunction juri)
         ]
