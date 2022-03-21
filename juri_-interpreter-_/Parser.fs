@@ -1,8 +1,8 @@
 module Juri.Internal.Parser
 
 open System
-open ParserCombinators
 open LanguageModel
+open ParserCombinators
 
 type IndentationType =
     | Tabs
@@ -12,20 +12,14 @@ type IndentationType =
 type JuriContext =
     {
         IndentationType : IndentationType
-        InFunctionDefinition : bool
-        InLoop : bool
         IndentationStack : int list
-        Variables : Identifier list
-        Functions : Identifier list
+        possibleBinaryExpression : bool
     }
     static member Default =
         {
             IndentationType = Unknown
-            InFunctionDefinition = false
-            InLoop = false
             IndentationStack = [0]
-            Variables = []
-            Functions = []
+            possibleBinaryExpression = true
         }
 
 
@@ -36,6 +30,7 @@ let private ws =
 let newline = createNewline<JuriContext> ()
 let EOS = createEOS<JuriContext>()
 let newlineEOS = either newline EOS
+
 
 
 
@@ -91,10 +86,32 @@ let private operator =
     many1 operatorChar
     .>> ws
     |>> (String.Concat >> BinaryOperator)
+    
+let operatorPrecedence (BinaryOperator str) =
+    let charMapper = function
+        | '=' | '<' | '>' | '!' -> 2
+        | '+' | '-' -> 1
+        | '*' | '/' | '%' -> 0
+        | _ -> 0
+    str
+    |> Seq.map charMapper
+    |> Seq.max
+    
+let operatorComparison =
+    let isComparisonOperator op _ = operatorPrecedence op = 2
+    operator |> satisfies isComparisonOperator
+
+let operatorSum =
+    let isSumOperator op _ = operatorPrecedence op = 1
+    operator |> satisfies isSumOperator
+
+let operatorProduct =
+    let isProductOperator op _ = operatorPrecedence op = 0
+    operator |> satisfies isProductOperator
 
 
 
-// keywords and controll chars
+// keywords and control chars
 let eq =
     pchar '=' .>> ws
     
@@ -104,6 +121,12 @@ let rangeOperator =
 let jinit =
     pstring "init" .>> ws
     
+let jbreak =
+    pstring "break" .>> ws
+    
+let jreturn =
+    pstring "return" .>> ws
+    
 let iterate =
     pstring "iterate" .>> ws
     
@@ -112,6 +135,9 @@ let jas =
 
 let ifloop =
     pstring "if" .>> ws
+    
+let jthen =
+    pstring "then" .>> ws
 
 let repeat =
     optional (pstring "repeat") .>> ws |>> (function | [] -> false | _ -> true)
@@ -133,9 +159,19 @@ let openBracket =
 
 let closingBracket =
     pchar ']' .>> ws |> deferr "Es fehlt eine schließende Klammer"
+    
+let private jnot =
+    pstring "not" .>> ws
+    
+let private jand =
+    pstring "and" .>> ws
+    
+let private jor =
+    pstring "or" .>> ws
 
 // expressions
 let private expression, expressionImpl = createParserForwarder ()
+let private singleExpression, singleExpressionImpl = createParserForwarder ()
 
 
 
@@ -151,18 +187,31 @@ let private number =
 
 
 
+let private parenthesizedExpression =
+    openParen
+    >>. expression
+    .>> (closingParen |> failAsFatal)
+    |>> ParenthesizedExpression
+    
+
+
 let private variableReference =
     identifier
     |>> VariableReference
+
+
 
 //let private listReference =
 //    listIdentifier
 //    |>> ListReference
 
+
+
 let private functionCall =
-    identifier .>> openParen .>>. (many1 expression)
+    identifier .>> openParen .>>. (many expression)
     .>> (closingParen |> failAsFatal)
     |>> FunctionCall
+
 
 
 let private listLength =
@@ -170,22 +219,50 @@ let private listLength =
     |>> ListLength
     
     
+    
 let private listAccess =
-    (number <|> variableReference <|> functionCall <|> listLength) .>>. listIdentifier
+    (parenthesizedExpression <|> number <|> variableReference <|> functionCall <|> listLength) .>>. listIdentifier
     |>> fun (index, id) -> ListAccess (id, index)
 
 
-let private binaryOperation =
-    (listAccess <|> listLength <|> number <|> variableReference <|> functionCall ) .>>. operator .>>. expression
-    |>> fun ((left, op), right) -> Binary (op, left, right)
-// 1 + 2 + 3 + 4
-// (1+2) + 3
-// 1 + (2+ (3+4))
+
+// Binary Expressions :O
+let private listToTree (single, chain): Expression =
+    let rec traverse left rest =
+        match rest with
+        | [] -> left
+        | (op, right) :: tail -> Binary (op, left, traverse right tail)
+    traverse single chain
+
+let private product =
+    singleExpression
+    .>>. many (operatorProduct .>>. singleExpression)
+    |>> listToTree
+    
+let private sum =
+    product .>>. many (operatorSum .>>. product)
+    |>> listToTree
+    
+let private comparison =
+    sum .>>. many (operatorComparison .>>. sum)
+    |>> listToTree
 
 
-expressionImpl :=
-    [binaryOperation; listAccess; functionCall; variableReference; listLength; number]
+
+singleExpressionImpl.Value <-
+    [
+        parenthesizedExpression
+        listAccess
+        functionCall
+        variableReference
+        listLength
+        number
+    ]
     |> choice
+    
+
+expressionImpl.Value <-
+    either comparison singleExpression
     .>> ws
     |> deferr "Es wird ein Ausdruck erwartet."
 
@@ -201,9 +278,14 @@ expressionImpl :=
 let private instruction, instructionImpl = createParserForwarder ()
 
 
-
 let emptyLines =
-    many (ws >>. newline)
+    let commentLine =
+        ws >>. pchar '#' .>> (AsUntilB (anyChar()) newlineEOS)
+        |>> ignore
+    let empty =
+        ws >>. newline
+        |>> ignore
+    many (either commentLine empty)
 
 
 
@@ -258,6 +340,7 @@ let private codeblock =
     |>> join2
     |> updateContext (fun _ c -> {c with IndentationStack = c.IndentationStack.Tail})
     |> deferr "Es fehlt ein Codeblock."
+
 
 
 
@@ -368,11 +451,36 @@ let private loop =
     .>> newline .>> emptyLines
     .>>. (codeblock |> failAsFatal)
     |>> fun ((con, rep), body) -> Loop (con, rep, body)
+    
+    
+    
+let private conditionWithSingleStatement = // has to be parsed before loop
+    ifloop
+    >>. (expression |> failAsFatal)
+    .>> jthen
+    .>>. (instruction |> failAsFatal)
+    |>> fun (con, statement) -> Loop (con, false, [statement])
 
 
 
-instructionImpl :=
+let private breakStatement =
+    jbreak
+    .>> newlineEOS .>> emptyLines
+    |>> (fun _ -> Break)
+    
+
+
+let private returnStatement =
+    jreturn
+    >>. expression
+    .>> newlineEOS .>> emptyLines
+    |>> Return
+
+
+
+instructionImpl.Value <-
     [   binaryOperatorDefinition
+        conditionWithSingleStatement
         loop
         functionDefinition
         assignment
@@ -382,12 +490,14 @@ instructionImpl :=
         listInitialisationWithValue
         listElementAssignment
         listIteration
+        breakStatement
+        returnStatement
         instructionExpression ]
     |> choice
 
 
 
-let private program =
+let juriProgram =
     emptyLines
     >>. many1 instruction
     .>> emptyLines
@@ -397,7 +507,7 @@ let private program =
 
 let parseProgram (text: char seq) =
     let stream = CharStream(text, JuriContext.Default)
-    let parsingResult = stream.RunParser(program)
+    let parsingResult = stream.RunParser(juriProgram)
     match parsingResult with
     | Failure (m,e) ->
         //stream.PrintError(m,e)

@@ -24,13 +24,13 @@ type public Interpreter() =
             parsingOK <- true
         | ParserCombinators.Failure(msg, _) ->
             parsingOK <- false
-            outputStreams.Error.Write(msg)
+            outputStreams.Error.Write(msg+"\n")
         | ParserCombinators.Fatal(msg, _) ->
             parsingOK <- false
-            outputStreams.Error.Write(msg)
+            outputStreams.Error.Write(msg+"\n")
     member this.ExecuteProgram() =
         let outputWriter = StreamWriter(outputStreams)
-        let initialState : ComputationState = (None, createEnvWithCoreLibFunctions())
+        let initialState = { ComputationState.Default with Environment = createEnvWithCoreLibFunctions () }
         match compute program outputWriter initialState with
         | Ok _      -> ()
         | Error msg -> outputStreams.Error.Write(msg)

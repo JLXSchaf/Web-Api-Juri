@@ -18,6 +18,9 @@ type InterpreterResult<'T> =
             | Error e -> Error e
             | Ok x -> g x
 
+let map f = function
+    | Ok r -> Ok (f r)
+    | Error msg -> Error msg
 
 type ProvidedFunction =
     IOutputWriter -> float list -> InterpreterResult<float>
@@ -34,7 +37,18 @@ and Environment =
     Map<Identifier, EnvironmentObject>
 
 
-and ComputationState = float Option * Environment
+and ComputationState =
+    {
+        LastExpression : float option
+        BreakFlag : bool
+        ReturnFlag : bool
+        Environment : Environment
+    }
+    static member Default = {
+        LastExpression = None
+        BreakFlag = false
+        ReturnFlag = false
+        Environment = Map.empty }
 
 let evalResultPrinter
         printOnlyErrors
