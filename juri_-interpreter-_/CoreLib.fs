@@ -10,6 +10,8 @@ let private buildinSub : ProvidedFunction = fun _ args -> args |> List.reduce ( 
 let private buildinDiv : ProvidedFunction = fun _ args -> args |> List.reduce ( / ) |> Ok
 
 
+
+
 let private buildinEquals : ProvidedFunction =
     fun _ args ->
         match args with
@@ -32,9 +34,19 @@ let private buildinPrint : ProvidedFunction =
             args
             |> List.map (fun x -> sprintf "%f " x)
             |> String.Concat
-            |> sprintf "%s\n"
+            |> sprintf "%s"
         out.WriteSTD(outputString)
         Ok 0.
+
+let private buildinPrintNewline : ProvidedFunction =
+    fun out args ->
+        let outputString =
+            args
+            |> List.map (fun x -> sprintf "%f " x)
+            |> String.Concat
+            |> sprintf "%s\n"
+        out.WriteSTD(outputString)
+        Ok 0.        
 
 let private buildinPrintChar : ProvidedFunction =
     fun out args ->
@@ -68,7 +80,35 @@ let private buildinRandom : ProvidedFunction =
         | [a]     -> rand.Next(0, int a) |> float |> Ok
         | [a;b]   -> rand.Next(int a, int b) |> float |> Ok
         | _       -> Error (sprintf "Diese Funktion erwartet 1 oder 2 Argumente - es wurden aber %i übergeben." args.Length)
-    
+
+
+let private buildinQuickMath : ProvidedFunction =
+    let test x =
+        if x <= 20 then "+"
+        elif x >= 20 && x < 40 then "*"
+        elif x >= 40 && x < 60 then "-"
+        elif x >= 60 && x < 80 then "/"
+        elif x >= 80 && x < 100 then "%"
+        else "**"
+        
+    fun _ args ->
+        let rand = Random()
+        let decider = rand.Next(0,120)
+        //+ * - / % ** ??
+        let op = test(decider)
+       
+        match args with
+        | [a;b]   -> 
+            match op with 
+            | "+" -> a + b  |> float |> Ok
+            | "*" -> a * b  |> float |> Ok
+            | "-" -> a - b  |> float |> Ok
+            | "/" -> a / b  |> float |> Ok
+            | "%" -> a % b  |> float |> Ok
+            | "**"-> a ** b |> float |> Ok
+            | _ -> Error (sprintf "Du bist ein Otto")
+        | _     -> Error (sprintf "Diese Funktion erwartet 2 Argumente - es wurden aber %i übergeben." args.Length)
+
 
 let private argError n = Error (sprintf "Diese Funktion erwartet 2 Argumente - es wurden aber %i übergeben" n)
 
@@ -183,9 +223,11 @@ let createEnvWithCoreLibFunctions () : Environment =
         (Identifier "bnd", ProvidedFunction buildinInBoundarys)
         (Identifier "eq", ProvidedFunction buildinEquals)
         (Identifier "print", ProvidedFunction buildinPrint)
+        (Identifier "printn", ProvidedFunction buildinPrintNewline)
         (Identifier "printc", ProvidedFunction buildinPrintChar)
         (Identifier "input", ProvidedFunction buildinInput)
         (Identifier "rand", ProvidedFunction buildinRandom)
+        (Identifier "quickmath", ProvidedFunction buildinQuickMath)
         (Identifier "+", ProvidedFunction plus)
         (Identifier "-", ProvidedFunction minus)
         (Identifier "*", ProvidedFunction star)

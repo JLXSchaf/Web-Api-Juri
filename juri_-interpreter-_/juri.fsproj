@@ -12,6 +12,7 @@
     <Compile Include="CoreLib.fs" />
     <Compile Include="Interpreter.fs" />
     <Compile Include="Parser.fs" />
+    <Compile Include="Preprocessor.fs" />
     <Compile Include="Repl.fs" />
     <Compile Include="CLI.fs" />
     <Content Include="examples\euler1.jri" />
@@ -20,6 +21,7 @@
     <Content Include="examples\test.jri" />
     <Content Include="examples\test2.jri" />
     <Content Include="examples\test3.jri" />
+    <Content Include="examples\primzahlen.jri" />
     <Compile Include="JuriInterpreter.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
